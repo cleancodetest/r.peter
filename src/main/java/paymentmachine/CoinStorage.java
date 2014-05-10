@@ -44,8 +44,7 @@ public class CoinStorage {
 				Integer actualUsableCoinNumber;
 				Map<Coin, Integer> result = new HashMap<>();
 				for (Coin coin : reversedCoinListForGreedyMatch) {
-					requiredCoinNumber = currentRemainingAmount
-							% coin.getValue();
+					requiredCoinNumber = currentRemainingAmount / coin.getValue();
 					actualUsableCoinNumber = Integer.min(requiredCoinNumber,
 							getCoinAmount(coin));
 					if (actualUsableCoinNumber > 0) {

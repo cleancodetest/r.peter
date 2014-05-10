@@ -1,9 +1,8 @@
 package paymentmachine;
 
-public class App 
-{
-    public static void main( String[] args )
-    {
-        System.out.println( "Hello World!" );
-    }
+public class App {
+	public static void main(String[] args) {
+		PaymentMachine pm = new PaymentMachine(System.in, System.out);
+		pm.start();
+	}
 }
