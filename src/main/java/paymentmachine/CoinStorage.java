@@ -18,8 +18,8 @@ public class CoinStorage {
 			ensureStorageState(State.IN_TRANSACTION);
 
 			Integer totalValue = 0;
-			for (Coin currentCoin : currentTransactionCoins.keySet()) {
-				totalValue += currentTransactionCoins.get(currentCoin)
+			for (Coin currentCoin : transactionCoins.keySet()) {
+				totalValue += transactionCoins.get(currentCoin)
 						* currentCoin.getValue();
 			}
 
@@ -32,43 +32,47 @@ public class CoinStorage {
 			return getCurrentTransactionValue() >= transactionRequiredAmount;
 		}
 
-		public Map<Coin,Integer> getHandBackCoins() {
+		public Map<Coin, Integer> getHandBackCoins() {
 			ensureStorageState(State.IN_TRANSACTION);
-			
+
 			if (isEnoughCoin()) {
-				List<Coin> reversedCoinListForGreedyMatch = Coin.getReversedCoinList();
-				
+				List<Coin> reversedCoinListForGreedyMatch = Coin
+						.getReversedCoinList();
+
 				Integer currentRemainingAmount = getMissingAmount();
 				Integer requiredCoinNumber;
 				Integer actualUsableCoinNumber;
-				Map<Coin,Integer> result = new HashMap<>();
+				Map<Coin, Integer> result = new HashMap<>();
 				for (Coin coin : reversedCoinListForGreedyMatch) {
-					requiredCoinNumber = currentRemainingAmount % coin.getValue();
-					actualUsableCoinNumber = Integer.min(requiredCoinNumber, getCoinAmount(coin));
-					if(actualUsableCoinNumber > 0){
+					requiredCoinNumber = currentRemainingAmount
+							% coin.getValue();
+					actualUsableCoinNumber = Integer.min(requiredCoinNumber,
+							getCoinAmount(coin));
+					if (actualUsableCoinNumber > 0) {
 						result.put(coin, actualUsableCoinNumber);
-						currentRemainingAmount -= coin.getValue() * actualUsableCoinNumber;
+						currentRemainingAmount -= coin.getValue()
+								* actualUsableCoinNumber;
 					}
 				}
-				if(currentRemainingAmount > 0){
+				if (currentRemainingAmount > 0) {
 					throw new NotEnoughCoinException();
 				}
-				
+
 				return result;
-			}
-			else{
+			} else {
 				throw new NotEnoughCoinInsertedException();
 			}
 		}
-		
-		public Integer getMissingAmount(){
+
+		public Integer getMissingAmount() {
 			return getCurrentTransactionValue() - transactionRequiredAmount;
 		}
-		
-		private Integer getCoinAmount(Coin coin){
+
+		private Integer getCoinAmount(Coin coin) {
 			Integer amount = coinStore.get(coin);
-			if(storageState == State.IN_TRANSACTION && currentTransactionCoins.containsKey(coin)){
-				amount += currentTransactionCoins.get(coin);
+			if (storageState == State.IN_TRANSACTION
+					&& transactionCoins.containsKey(coin)) {
+				amount += transactionCoins.get(coin);
 			}
 			return amount;
 		}
@@ -78,7 +82,7 @@ public class CoinStorage {
 	private State storageState;
 	private CoinCalculator coinCalculator;
 
-	private Map<Coin, Integer> currentTransactionCoins;
+	private Map<Coin, Integer> transactionCoins;
 	private Integer transactionRequiredAmount;
 
 	public CoinStorage() {
@@ -88,7 +92,7 @@ public class CoinStorage {
 	private void initializeCoinStorage() {
 		Coin[] coins = Coin.values();
 		for (int i = 0; i < coins.length; i++) {
-			coinStore.put(coins[i], 20);
+			coinStore.put(coins[i], 2);
 		}
 
 		storageState = State.WAITING;
@@ -99,37 +103,58 @@ public class CoinStorage {
 		ensureStorageState(State.WAITING);
 
 		storageState = State.IN_TRANSACTION;
-		currentTransactionCoins = new HashMap<>();
+		transactionCoins = new HashMap<>();
 		transactionRequiredAmount = requiredAmount;
 	}
 
 	public void insertCoin(Coin c) {
 		ensureStorageState(State.IN_TRANSACTION);
 
-		if (currentTransactionCoins.keySet().contains(c)) {
-			currentTransactionCoins.put(c, currentTransactionCoins.get(c) + 1);
+		if (transactionCoins.keySet().contains(c)) {
+			transactionCoins.put(c, transactionCoins.get(c) + 1);
 		} else {
-			currentTransactionCoins.put(c, 1);
+			transactionCoins.put(c, 1);
 		}
 	}
 
-	public Boolean canFinishTransaction() {
-		return true;
+	public Map<Coin, Integer> finishTransaction() {
+		ensureStorageState(State.IN_TRANSACTION);
+
+		Map<Coin, Integer> handBack = coinCalculator.getHandBackCoins();
+
+		for (Coin coin : transactionCoins.keySet()) {
+			coinStore.put(coin,
+					coinStore.get(coin) + transactionCoins.get(coin));
+		}
+
+		for (Coin coin : handBack.keySet()) {
+			coinStore.put(coin, coinStore.get(coin) - handBack.get(coin));
+		}
+
+		storageState = State.WAITING;
+		transactionCoins = null;
+		transactionRequiredAmount = 0;
+
+		return handBack;
 	}
 
 	public Map<Coin, Integer> cancelTransaction() {
 		ensureStorageState(State.IN_TRANSACTION);
 
 		storageState = State.WAITING;
-		Map<Coin, Integer> ret = currentTransactionCoins;
-		currentTransactionCoins = null;
+		Map<Coin, Integer> ret = transactionCoins;
+		transactionCoins = null;
 		return ret;
 	}
 
 	public Map<Coin, Integer> getCurrentTransactionCoins() {
 		ensureStorageState(State.IN_TRANSACTION);
 
-		return Collections.unmodifiableMap(currentTransactionCoins);
+		return Collections.unmodifiableMap(transactionCoins);
+	}
+
+	public Map<Coin, Integer> getCurrentCoinsInStorage() {
+		return Collections.unmodifiableMap(coinStore);
 	}
 
 	public State getStorageState() {
@@ -147,7 +172,8 @@ public class CoinStorage {
 
 		List<State> requiredStateList = Arrays.asList(requiredState);
 		if (!requiredStateList.contains(storageState)) {
-			throw new InvalidStorageStateException(storageState, requiredStateList);
+			throw new InvalidStorageStateException(storageState,
+					requiredStateList);
 		}
 	}
 }
